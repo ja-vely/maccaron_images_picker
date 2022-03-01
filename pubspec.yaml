@@ -42,7 +42,7 @@ flutter:
     platforms:
       android:
         package: com.example.maccaron_images_picker
-        pluginClass: ImageCropperPlugin
+        pluginClass: ImagePickerPlugin
 #      ios:
 #        pluginClass: FLTImageCropperPlugin
 
