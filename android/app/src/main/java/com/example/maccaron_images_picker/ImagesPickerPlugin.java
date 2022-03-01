@@ -46,8 +46,13 @@ import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.PluginRegistry;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
 
+import androidx.annotation.NonNull;
+import io.flutter.embedding.android.FlutterActivity;
+import io.flutter.embedding.engine.FlutterEngine;
+import io.flutter.plugin.common.MethodChannel;
+
 /** ImagesPickerPlugin */
-public class ImagesPickerPlugin implements FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
+public class ImagesPickerPlugin extends FlutterActivity {
   /// The MethodChannel that will the communication between Flutter and native Android
   ///
   /// This local reference serves to register the plugin with the Flutter Engine and unregister it
@@ -63,158 +68,276 @@ public class ImagesPickerPlugin implements FlutterPlugin, MethodCallHandler, Act
   private String ALBUM_NAME;
   public static String channelName = "chavesgu/images_picker";
 
+//  @Override
+//  public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
+//    channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), channelName);
+//    channel.setMethodCallHandler(this);
+//    context = flutterPluginBinding.getApplicationContext();
+//  }
+
+//  public static void registerWith(Registrar registrar) {
+//    ImagesPickerPlugin instance = new ImagesPickerPlugin();
+//    final MethodChannel channel = new MethodChannel(registrar.messenger(), channelName);
+//    channel.setMethodCallHandler(instance);
+//    instance.context = registrar.context();
+//    registrar.addRequestPermissionsResultListener(instance);
+//  }
+
+//  @Override
+//  public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
+//    channel.setMethodCallHandler(null);
+//  }
+//
+//  @Override
+//  public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
+//    activity = binding.getActivity();
+//    binding.addRequestPermissionsResultListener(this);
+//  }
+//
+//  @Override
+//  public void onDetachedFromActivityForConfigChanges() {
+//
+//  }
+//
+//  @Override
+//  public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
+//    activity = binding.getActivity();
+//  }
+//
+//  @Override
+//  public void onDetachedFromActivity() {
+//
+//  }
+
+  private static final String CHANNEL = "chavesgu/images_picker";
+
   @Override
-  public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
-    channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), channelName);
-    channel.setMethodCallHandler(this);
-    context = flutterPluginBinding.getApplicationContext();
-  }
+  public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
+    super.configureFlutterEngine(flutterEngine);
+    new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL)
+            .setMethodCallHandler(
+                    (call, result) -> {
+                      _result = result;
+                      switch (call.method) {
+                        case "getPlatformVersion":
+                          result.success("Android " + Build.VERSION.RELEASE);
+                          break;
+                        case "pick": {
+                          int count = (int) call.argument("count");
+                          String pickType = call.argument("pickType");
+                          double quality = call.argument("quality");
+                          boolean supportGif = call.argument("gif");
+                          int maxTime = call.argument("maxTime");
+                          HashMap<String, Object> cropOption = call.argument("cropOption");
+                          String language = call.argument("language");
 
-  public static void registerWith(Registrar registrar) {
-    ImagesPickerPlugin instance = new ImagesPickerPlugin();
-    final MethodChannel channel = new MethodChannel(registrar.messenger(), channelName);
-    channel.setMethodCallHandler(instance);
-    instance.context = registrar.context();
-    registrar.addRequestPermissionsResultListener(instance);
-  }
+                          int chooseType;
+                          switch (pickType) {
+                            case "PickType.video":
+                              chooseType = PictureMimeType.ofVideo();
+                              break;
+                            case "PickType.all":
+                              chooseType = PictureMimeType.ofAll();
+                              break;
+                            default:
+                              chooseType = PictureMimeType.ofImage();
+                              break;
+                          }
+                          PictureSelectionModel model = PictureSelector.create(activity)
+                                  .openGallery(chooseType);
+                          Utils.setLanguage(model, language);
+                          Utils.setPhotoSelectOpt(model, count, quality);
+                          if (cropOption!=null) Utils.setCropOpt(model, cropOption);
+                          model.isGif(supportGif);
+                          model.videoMaxSecond(maxTime);
+                          resolveMedias(model);
+                          break;
+                        }
+                        case "openCamera": {
+                          String pickType = call.argument("pickType");
+                          int maxTime = call.argument("maxTime");
+                          double quality = call.argument("quality");
+                          HashMap<String, Object> cropOption = call.argument("cropOption");
+                          String language = call.argument("language");
 
-  @Override
-  public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
-    channel.setMethodCallHandler(null);
-  }
+                          int chooseType = PictureMimeType.ofVideo();
+                          switch (pickType) {
+                            case "PickType.image":
+                              chooseType = PictureMimeType.ofImage();
+                              break;
+                            default:
+                              chooseType = PictureMimeType.ofVideo();
+                              break;
+                          }
 
-  @Override
-  public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
-    activity = binding.getActivity();
-    binding.addRequestPermissionsResultListener(this);
-  }
-
-  @Override
-  public void onDetachedFromActivityForConfigChanges() {
-
-  }
-
-  @Override
-  public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
-    activity = binding.getActivity();
-  }
-
-  @Override
-  public void onDetachedFromActivity() {
-
-  }
-
-
-  @Override
-  public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
-    _result = result;
-    switch (call.method) {
-      case "getPlatformVersion":
-        result.success("Android " + Build.VERSION.RELEASE);
-        break;
-      case "pick": {
-        int count = (int) call.argument("count");
-        String pickType = call.argument("pickType");
-        double quality = call.argument("quality");
-        boolean supportGif = call.argument("gif");
-        int maxTime = call.argument("maxTime");
-        HashMap<String, Object> cropOption = call.argument("cropOption");
-        String language = call.argument("language");
-
-        int chooseType;
-        switch (pickType) {
-          case "PickType.video":
-            chooseType = PictureMimeType.ofVideo();
-            break;
-          case "PickType.all":
-            chooseType = PictureMimeType.ofAll();
-            break;
-          default:
-            chooseType = PictureMimeType.ofImage();
-            break;
-        }
-        PictureSelectionModel model = PictureSelector.create(activity)
-                .openGallery(chooseType);
-        Utils.setLanguage(model, language);
-        Utils.setPhotoSelectOpt(model, count, quality);
-        if (cropOption!=null) Utils.setCropOpt(model, cropOption);
-        model.isGif(supportGif);
-        model.videoMaxSecond(maxTime);
-        resolveMedias(model);
-        break;
-      }
-      case "openCamera": {
-        String pickType = call.argument("pickType");
-        int maxTime = call.argument("maxTime");
-        double quality = call.argument("quality");
-        HashMap<String, Object> cropOption = call.argument("cropOption");
-        String language = call.argument("language");
-
-        int chooseType = PictureMimeType.ofVideo();
-        switch (pickType) {
-          case "PickType.image":
-            chooseType = PictureMimeType.ofImage();
-            break;
-          default:
-            chooseType = PictureMimeType.ofVideo();
-            break;
-        }
-
-        PictureSelectionModel model = PictureSelector.create(activity)
-                .openCamera(chooseType);
-        model.setOutputCameraPath(context.getExternalCacheDir().getAbsolutePath());
-        if (pickType.equals("PickType.image")) {
-          model.cameraFileName("image_picker_camera_"+UUID.randomUUID().toString()+".jpg");
-        } else {
-          model.cameraFileName("image_picker_camera_"+UUID.randomUUID().toString()+".mp4");
-        }
-        model.recordVideoSecond(maxTime);
-        Utils.setLanguage(model, language);
-        Utils.setPhotoSelectOpt(model, 1, quality);
-        if (cropOption!=null) Utils.setCropOpt(model, cropOption);
-        resolveMedias(model);
-        break;
-      }
-      case "saveVideoToAlbum": {
-        String path = (String) call.argument("path");
-        String albumName = call.argument("albumName");
-        WRITE_VIDEO_PATH = path;
-        ALBUM_NAME = albumName;
-        if (hasPermission()) {
-          saveVideoToGallery(path, albumName);
-        } else {
-          String[] permissions = new String[2];
-          permissions[0] = Manifest.permission.WRITE_EXTERNAL_STORAGE;
-          permissions[1] = Manifest.permission.READ_EXTERNAL_STORAGE;
-          ActivityCompat.requestPermissions(activity, permissions, WRITE_VIDEO_CODE);
-        }
-        break;
-      }
-      case "saveImageToAlbum": {
-        String path = (String) call.argument("path");
-        String albumName = call.argument("albumName");
-        WRITE_IMAGE_PATH = path;
-        ALBUM_NAME = albumName;
-        if (hasPermission()) {
-          saveImageToGallery(path, albumName);
-        } else {
-          String[] permissions = new String[2];
-          permissions[0] = Manifest.permission.WRITE_EXTERNAL_STORAGE;
-          permissions[1] = Manifest.permission.READ_EXTERNAL_STORAGE;
-          ActivityCompat.requestPermissions(activity, permissions, WRITE_IMAGE_CODE);
-        }
-        break;
-      }
+                          PictureSelectionModel model = PictureSelector.create(activity)
+                                  .openCamera(chooseType);
+                          model.setOutputCameraPath(context.getExternalCacheDir().getAbsolutePath());
+                          if (pickType.equals("PickType.image")) {
+                            model.cameraFileName("image_picker_camera_"+UUID.randomUUID().toString()+".jpg");
+                          } else {
+                            model.cameraFileName("image_picker_camera_"+UUID.randomUUID().toString()+".mp4");
+                          }
+                          model.recordVideoSecond(maxTime);
+                          Utils.setLanguage(model, language);
+                          Utils.setPhotoSelectOpt(model, 1, quality);
+                          if (cropOption!=null) Utils.setCropOpt(model, cropOption);
+                          resolveMedias(model);
+                          break;
+                        }
+                        case "saveVideoToAlbum": {
+                          String path = (String) call.argument("path");
+                          String albumName = call.argument("albumName");
+                          WRITE_VIDEO_PATH = path;
+                          ALBUM_NAME = albumName;
+                          if (hasPermission()) {
+                            saveVideoToGallery(path, albumName);
+                          } else {
+                            String[] permissions = new String[2];
+                            permissions[0] = Manifest.permission.WRITE_EXTERNAL_STORAGE;
+                            permissions[1] = Manifest.permission.READ_EXTERNAL_STORAGE;
+                            ActivityCompat.requestPermissions(activity, permissions, WRITE_VIDEO_CODE);
+                          }
+                          break;
+                        }
+                        case "saveImageToAlbum": {
+                          String path = (String) call.argument("path");
+                          String albumName = call.argument("albumName");
+                          WRITE_IMAGE_PATH = path;
+                          ALBUM_NAME = albumName;
+                          if (hasPermission()) {
+                            saveImageToGallery(path, albumName);
+                          } else {
+                            String[] permissions = new String[2];
+                            permissions[0] = Manifest.permission.WRITE_EXTERNAL_STORAGE;
+                            permissions[1] = Manifest.permission.READ_EXTERNAL_STORAGE;
+                            ActivityCompat.requestPermissions(activity, permissions, WRITE_IMAGE_CODE);
+                          }
+                          break;
+                        }
 //      case "saveNetworkImageToAlbum": {
 //        String url = (String) call.arguments;
 //        saveNetworkImageToGallery(url);
 //        break;
 //      }
-      default:
-        result.notImplemented();
-        break;
-    }
+                        default:
+                          result.notImplemented();
+                          break;
+                      }
+                    }
+            );
   }
+
+//  @Override
+//  public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
+//    _result = result;
+//    switch (call.method) {
+//      case "getPlatformVersion":
+//        result.success("Android " + Build.VERSION.RELEASE);
+//        break;
+//      case "pick": {
+//        int count = (int) call.argument("count");
+//        String pickType = call.argument("pickType");
+//        double quality = call.argument("quality");
+//        boolean supportGif = call.argument("gif");
+//        int maxTime = call.argument("maxTime");
+//        HashMap<String, Object> cropOption = call.argument("cropOption");
+//        String language = call.argument("language");
+//
+//        int chooseType;
+//        switch (pickType) {
+//          case "PickType.video":
+//            chooseType = PictureMimeType.ofVideo();
+//            break;
+//          case "PickType.all":
+//            chooseType = PictureMimeType.ofAll();
+//            break;
+//          default:
+//            chooseType = PictureMimeType.ofImage();
+//            break;
+//        }
+//        PictureSelectionModel model = PictureSelector.create(activity)
+//                .openGallery(chooseType);
+//        Utils.setLanguage(model, language);
+//        Utils.setPhotoSelectOpt(model, count, quality);
+//        if (cropOption!=null) Utils.setCropOpt(model, cropOption);
+//        model.isGif(supportGif);
+//        model.videoMaxSecond(maxTime);
+//        resolveMedias(model);
+//        break;
+//      }
+//      case "openCamera": {
+//        String pickType = call.argument("pickType");
+//        int maxTime = call.argument("maxTime");
+//        double quality = call.argument("quality");
+//        HashMap<String, Object> cropOption = call.argument("cropOption");
+//        String language = call.argument("language");
+//
+//        int chooseType = PictureMimeType.ofVideo();
+//        switch (pickType) {
+//          case "PickType.image":
+//            chooseType = PictureMimeType.ofImage();
+//            break;
+//          default:
+//            chooseType = PictureMimeType.ofVideo();
+//            break;
+//        }
+//
+//        PictureSelectionModel model = PictureSelector.create(activity)
+//                .openCamera(chooseType);
+//        model.setOutputCameraPath(context.getExternalCacheDir().getAbsolutePath());
+//        if (pickType.equals("PickType.image")) {
+//          model.cameraFileName("image_picker_camera_"+UUID.randomUUID().toString()+".jpg");
+//        } else {
+//          model.cameraFileName("image_picker_camera_"+UUID.randomUUID().toString()+".mp4");
+//        }
+//        model.recordVideoSecond(maxTime);
+//        Utils.setLanguage(model, language);
+//        Utils.setPhotoSelectOpt(model, 1, quality);
+//        if (cropOption!=null) Utils.setCropOpt(model, cropOption);
+//        resolveMedias(model);
+//        break;
+//      }
+//      case "saveVideoToAlbum": {
+//        String path = (String) call.argument("path");
+//        String albumName = call.argument("albumName");
+//        WRITE_VIDEO_PATH = path;
+//        ALBUM_NAME = albumName;
+//        if (hasPermission()) {
+//          saveVideoToGallery(path, albumName);
+//        } else {
+//          String[] permissions = new String[2];
+//          permissions[0] = Manifest.permission.WRITE_EXTERNAL_STORAGE;
+//          permissions[1] = Manifest.permission.READ_EXTERNAL_STORAGE;
+//          ActivityCompat.requestPermissions(activity, permissions, WRITE_VIDEO_CODE);
+//        }
+//        break;
+//      }
+//      case "saveImageToAlbum": {
+//        String path = (String) call.argument("path");
+//        String albumName = call.argument("albumName");
+//        WRITE_IMAGE_PATH = path;
+//        ALBUM_NAME = albumName;
+//        if (hasPermission()) {
+//          saveImageToGallery(path, albumName);
+//        } else {
+//          String[] permissions = new String[2];
+//          permissions[0] = Manifest.permission.WRITE_EXTERNAL_STORAGE;
+//          permissions[1] = Manifest.permission.READ_EXTERNAL_STORAGE;
+//          ActivityCompat.requestPermissions(activity, permissions, WRITE_IMAGE_CODE);
+//        }
+//        break;
+//      }
+////      case "saveNetworkImageToAlbum": {
+////        String url = (String) call.arguments;
+////        saveNetworkImageToGallery(url);
+////        break;
+////      }
+//      default:
+//        result.notImplemented();
+//        break;
+//    }
+//  }
 
   private void resolveMedias(PictureSelectionModel model) {
     model.forResult(new OnResultCallbackListener<LocalMedia>() {
@@ -347,16 +470,16 @@ public class ImagesPickerPlugin implements FlutterPlugin, MethodCallHandler, Act
             (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PERMISSION_GRANTED && ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PERMISSION_GRANTED);
   }
 
-    @Override
-    public boolean onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-      if (requestCode == WRITE_IMAGE_CODE && grantResults[0] == PERMISSION_GRANTED && grantResults[1] == PERMISSION_GRANTED) {
-          saveImageToGallery(WRITE_IMAGE_PATH, ALBUM_NAME);
-          return true;
-      }
-      if (requestCode == WRITE_VIDEO_CODE && grantResults[0] == PERMISSION_GRANTED && grantResults[1] == PERMISSION_GRANTED) {
-          saveVideoToGallery(WRITE_VIDEO_PATH, ALBUM_NAME);
-          return true;
-      }
-      return false;
-    }
+//    @Override
+//    public boolean onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+//      if (requestCode == WRITE_IMAGE_CODE && grantResults[0] == PERMISSION_GRANTED && grantResults[1] == PERMISSION_GRANTED) {
+//          saveImageToGallery(WRITE_IMAGE_PATH, ALBUM_NAME);
+//          return true;
+//      }
+//      if (requestCode == WRITE_VIDEO_CODE && grantResults[0] == PERMISSION_GRANTED && grantResults[1] == PERMISSION_GRANTED) {
+//          saveVideoToGallery(WRITE_VIDEO_PATH, ALBUM_NAME);
+//          return true;
+//      }
+//      return false;
+//    }
 }
